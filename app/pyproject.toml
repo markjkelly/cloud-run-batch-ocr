@@ -33,5 +33,6 @@ package = false
 [dependency-groups]
 dev = [
     "pytest",
-    "pytest-mock"
+    "pytest-cov>=7.1.0",
+    "pytest-mock",
 ]

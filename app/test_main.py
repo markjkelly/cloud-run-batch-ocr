@@ -126,19 +126,145 @@ def test_docai_failure_reraises_and_updates_status(_mock_docai, _mock_storage, m
     mock_blob.metadata = {}
     mock_blob.metageneration = 1
     mock_blob.content_type = "application/pdf"
-    
+
     storage_instance = MagicMock()
     _mock_storage.return_value = storage_instance
     storage_instance.bucket.return_value.get_blob.return_value = mock_blob
-    
+
     docai_instance = MagicMock()
     _mock_docai.return_value = docai_instance
     docai_instance.processor_path.return_value = "projects/test/locations/us/processors/test-processor"
     docai_instance.process_document.side_effect = GoogleAPICallError("Test API Transient Disconnection")
-    
+
     # Should catch GoogleAPICallError and reraise to trigger PubSub exponential backoff
     with pytest.raises(GoogleAPICallError):
         main.ocr_document_processor(sample_cloud_event)
-        
+
     assert mock_blob.metadata["ocr_status"] == "FAILED"
     mock_blob.patch.assert_called_once_with(if_metageneration_match=1)
+
+
+@patch("main.get_storage_client")
+def test_missing_event_data_returns(_mock_storage, mock_env, caplog):
+    """Event payload missing bucket or name → logs error and returns without processing."""
+    attributes = {
+        "type": "google.cloud.storage.object.v1.finalized",
+        "source": "//storage.googleapis.com/test-bucket",
+    }
+    event = CloudEvent(attributes, {"name": "test-doc.pdf"})  # no bucket key
+
+    main.ocr_document_processor(event)
+
+    assert "Missing bucket or file name" in caplog.text
+    _mock_storage.return_value.bucket.assert_not_called()
+
+
+@patch("main.get_storage_client")
+def test_blob_not_found_returns(_mock_storage, mock_env, sample_cloud_event, caplog):
+    """Blob absent from bucket → logs warning and returns without processing."""
+    storage_instance = MagicMock()
+    _mock_storage.return_value = storage_instance
+    storage_instance.bucket.return_value.get_blob.return_value = None
+
+    main.ocr_document_processor(sample_cloud_event)
+
+    assert "File not found" in caplog.text
+
+
+@patch("main.get_storage_client")
+@patch("main.get_docai_client")
+def test_non_transient_docai_error_patches_failed_and_returns(
+    _mock_docai, _mock_storage, mock_env, sample_cloud_event
+):
+    """Non-transient DocAI error (e.g. ValueError) patches FAILED status and returns without re-raising."""
+    mock_blob = MagicMock()
+    mock_blob.metadata = {}
+    mock_blob.metageneration = 1
+    mock_blob.content_type = "application/pdf"
+
+    storage_instance = MagicMock()
+    _mock_storage.return_value = storage_instance
+    storage_instance.bucket.return_value.get_blob.return_value = mock_blob
+
+    docai_instance = MagicMock()
+    _mock_docai.return_value = docai_instance
+    docai_instance.processor_path.return_value = "projects/test/locations/us/processors/test-processor"
+    docai_instance.process_document.side_effect = ValueError("Invalid document format")
+
+    main.ocr_document_processor(sample_cloud_event)  # must not raise
+
+    assert mock_blob.metadata["ocr_status"] == "FAILED"
+    assert "Invalid document format" in mock_blob.metadata.get("ocr_error", "")
+    mock_blob.patch.assert_called_once_with(if_metageneration_match=1)
+
+
+@patch("main.documentai.Document.to_json")
+@patch("main.get_storage_client")
+@patch("main.get_docai_client")
+def test_gcs_upload_failure_reraises(
+    _mock_docai, _mock_storage, _mock_to_json, mock_env, sample_cloud_event
+):
+    """GCS upload failure re-raises to trigger Pub/Sub retry."""
+    mock_blob = MagicMock()
+    mock_blob.metadata = {}
+    mock_blob.metageneration = 1
+    mock_blob.content_type = "application/pdf"
+
+    storage_instance = MagicMock()
+    _mock_storage.return_value = storage_instance
+    storage_instance.bucket.return_value.get_blob.return_value = mock_blob
+    storage_instance.bucket.return_value.blob.return_value.upload_from_string.side_effect = Exception(
+        "GCS write error"
+    )
+
+    docai_instance = MagicMock()
+    _mock_docai.return_value = docai_instance
+    docai_instance.processor_path.return_value = "projects/test/locations/us/processors/test-processor"
+    docai_instance.process_document.return_value = MagicMock()
+    _mock_to_json.return_value = '{"text": "mocked"}'
+
+    with pytest.raises(Exception, match="GCS write error"):
+        main.ocr_document_processor(sample_cloud_event)
+
+
+@patch("main.documentai.Document.to_json")
+@patch("main.get_storage_client")
+@patch("main.get_docai_client")
+@patch("main.get_discovery_client")
+def test_indexing_failure_sets_ocr_success_index_failed(
+    _mock_discovery, _mock_docai, _mock_storage, _mock_to_json, mock_env, sample_cloud_event
+):
+    """When Vertex AI Search indexing fails, status is OCR_SUCCESS_INDEX_FAILED."""
+    mock_blob = MagicMock()
+    mock_blob.metadata = {}
+    mock_blob.metageneration = 1
+    mock_blob.content_type = "application/pdf"
+
+    storage_instance = MagicMock()
+    _mock_storage.return_value = storage_instance
+    storage_instance.bucket.return_value.get_blob.return_value = mock_blob
+
+    docai_instance = MagicMock()
+    _mock_docai.return_value = docai_instance
+    docai_instance.processor_path.return_value = "projects/test/locations/us/processors/test-processor"
+    docai_instance.process_document.return_value = MagicMock()
+    _mock_to_json.return_value = '{"text": "mocked"}'
+
+    discovery_instance = MagicMock()
+    _mock_discovery.return_value = discovery_instance
+    discovery_instance.import_documents.side_effect = Exception("unexpected indexing error")
+
+    main.ocr_document_processor(sample_cloud_event)
+
+    assert mock_blob.metadata["ocr_status"] == "OCR_SUCCESS_INDEX_FAILED"
+
+
+def test_safe_patch_metadata_swallows_exception(caplog):
+    """_safe_patch_metadata logs a warning but does not raise when patch fails."""
+    mock_blob = MagicMock()
+    mock_blob.patch.side_effect = Exception("Concurrent modification")
+
+    main._safe_patch_metadata(mock_blob, {"ocr_status": "SUCCESS"}, 42)
+
+    assert "Failed to patch metadata" in caplog.text
+    assert mock_blob.metadata == {"ocr_status": "SUCCESS"}
