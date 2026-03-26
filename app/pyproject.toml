@@ -16,7 +16,7 @@
 name = "ocr-processor"
 version = "0.1.0"
 description = "Cloud Run Function for OCR Processing"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "functions-framework>=3.5.0",
     "cloudevents>=1.11.0",
