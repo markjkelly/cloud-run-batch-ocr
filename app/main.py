@@ -12,6 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Cloud Run Batch OCR Processor
+
+Deployment Path (Cloud Console - Simple Code-Only Deployment):
+1. Navigate to Cloud Run in the Google Cloud Console.
+2. Select "Deploy Container" -> "Service" and choose "Deploy one revision from source code".
+3. Upload this source code bundle.
+4. In Advanced Settings -> Variables & Secrets, configure the required Environment Variables:
+   - GCP_PROJECT_ID
+   - DOCAI_PROCESSOR_ID
+   - OCR_OUTPUT_BUCKET
+   - SEARCH_DATA_STORE_ID
+5. Add an Eventarc Trigger for "Cloud Storage" with event type "google.cloud.storage.object.v1.finalized" pointing to your input bucket.
+"""
+
 import os
 import json
 import logging
