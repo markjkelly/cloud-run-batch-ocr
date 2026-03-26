@@ -103,6 +103,8 @@ gcloud storage buckets add-iam-policy-binding gs://${PROJECT_ID}-ocr-output \
 
 ## 6. Build and Push the Container Image
 
+*(Note: If you plan to deploy directly from source in Step 9, you can safely skip this entire step.)*
+
 ```bash
 # Create Artifact Registry repository
 gcloud artifacts repositories create $REPO_NAME \
@@ -163,9 +165,37 @@ curl -s \
 
 ## 9. Deploy the Cloud Run Service
 
+You can deploy using either the pre-built image from Step 6, or deploy directly from source.
+
+### Option A: Deploy using Pre-built Image
+
 ```bash
 gcloud run deploy ocr-processor-service \
   --image=$IMAGE_URI \
+  --region=$REGION \
+  --project=$PROJECT_ID \
+  --service-account=$SA_EMAIL \
+  --max-instances=20 \
+  --concurrency=1 \
+  --timeout=3600 \
+  --no-allow-unauthenticated \
+  --port=8080 \
+  --set-env-vars="\
+GCP_PROJECT_ID=${PROJECT_ID},\
+DOCAI_LOCATION=${DOCAI_LOCATION},\
+DOCAI_PROCESSOR_ID=${DOCAI_PROCESSOR_NAME},\
+OCR_OUTPUT_BUCKET=${PROJECT_ID}-ocr-output,\
+SEARCH_LOCATION=${SEARCH_LOCATION},\
+SEARCH_DATA_STORE_ID=${DATA_STORE_ID}"
+```
+
+### Option B: Deploy directly from Source
+
+*(Note: Cloud Build will automatically package your code using the included Dockerfile. You do not need to run Step 6 if you use this option.)*
+
+```bash
+gcloud run deploy ocr-processor-service \
+  --source=app/ \
   --region=$REGION \
   --project=$PROJECT_ID \
   --service-account=$SA_EMAIL \
