@@ -44,3 +44,6 @@ addopts = [
     "--cov=main",
     "--cov-report=term-missing",
 ]
+markers = [
+    "e2e: marks tests as end-to-end (requires live GCP environment)",
+]
