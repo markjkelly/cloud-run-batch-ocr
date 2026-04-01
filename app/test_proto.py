@@ -16,20 +16,19 @@ from google.cloud import documentai
 from unittest.mock import MagicMock
 import traceback
 
-print("Testing Name Check:")
-try:
+def test_name_check():
+    """Verify ProcessRequest creation with valid arguments."""
     req = documentai.ProcessRequest(
-        name=MagicMock(),
+        name="projects/test-project/locations/us/processors/test-processor",
         gcs_document=documentai.GcsDocument(gcs_uri="gs://foo/bar", mime_type="application/pdf")
     )
-    print("Success")
-except Exception as e:
-    print("Error in name check:", repr(e))
+    assert req.gcs_document.gcs_uri == "gs://foo/bar"
+    assert req.gcs_document.mime_type == "application/pdf"
 
-print("Testing to_json:")
-try:
-    json_str = documentai.Document.to_json(MagicMock())
-    print("Success", json_str)
-except Exception as e:
-    print("Error in to_json check:", repr(e))
+
+def test_to_json():
+    """Verify Document.to_json with a real Document."""
+    doc = documentai.Document(text="hello world")
+    json_str = documentai.Document.to_json(doc)
+    assert isinstance(json_str, str)
 

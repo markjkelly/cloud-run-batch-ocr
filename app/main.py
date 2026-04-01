@@ -42,11 +42,22 @@ from google.api_core.exceptions import GoogleAPICallError, RetryError
 from google.api_core import retry, exceptions
 
 # 1. Structured Logging
-# Initialize Google Cloud Logging Client
-logging_client = google.cloud.logging.Client()
-logging_client.setup_logging()
 logger = logging.getLogger("ocr_processor")
 logger.setLevel(logging.INFO)
+_logging_initialized = False
+
+
+def _setup_logging():
+    """Initializes Google Cloud Logging Client lazily."""
+    global _logging_initialized
+    if not _logging_initialized:
+        try:
+            logging_client = google.cloud.logging.Client()
+            logging_client.setup_logging()
+            _logging_initialized = True
+        except Exception as e:
+            # Fallback to standard logging if client fails
+            print(f"Warning: Failed to initialize Cloud Logging client: {e}")
 
 # 2. Global API Clients Lazy Initialization
 # This prevents crashes during import if environment variables aren't set yet.
@@ -193,6 +204,8 @@ def _safe_patch_metadata(blob: storage.Blob, metadata: dict, expected_metagenera
 
 @functions_framework.cloud_event
 def ocr_document_processor(cloud_event: CloudEvent):
+    _setup_logging()
+
     # Verify environment variables
     required_vars = [
         "GCP_PROJECT_ID",
@@ -203,7 +216,6 @@ def ocr_document_processor(cloud_event: CloudEvent):
     missing = [var for var in required_vars if not os.environ.get(var)]
     if missing:
         msg = f"CRITICAL: Missing required environment variables: {', '.join(missing)}"
-        print(msg)  # Use print as logger might not work well without project contexts
         logger.critical(msg)
         return
 

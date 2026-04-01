@@ -36,3 +36,11 @@ dev = [
     "pytest-cov>=7.1.0",
     "pytest-mock",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+addopts = [
+    "--strict-markers",
+    "--cov=main",
+    "--cov-report=term-missing",
+]
