@@ -58,6 +58,19 @@ watch -n 5 "gsutil stat gs://${PROJECT_ID}-ocr-input/smoke-test.pdf 2>&1 | grep 
 
 Expected result: `ocr_status: SUCCESS`
 
+#### Automated Verification
+
+You can also run the automated E2E test suite using `pytest`:
+
+```bash
+cd app
+# Set required environment variables
+export GCP_PROJECT_ID="YOUR_PROJECT_ID"
+export OCR_INPUT_BUCKET="YOUR_INPUT_BUCKET" # Optional, defaults to {PROJECT_ID}-ocr-input
+
+uv run pytest ../tests/e2e
+```
+
 ---
 
 ## Monitoring

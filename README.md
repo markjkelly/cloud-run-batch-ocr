@@ -97,7 +97,16 @@ Run tests:
 
 ```bash
 cd app/
-uv run pytest test_main.py
+uv run pytest
+```
+
+### End-to-End Tests
+
+To run the live E2E tests (requires `GCP_PROJECT_ID` and an authenticated environment with access to GCS and Document AI):
+
+```bash
+cd app/
+uv run pytest ../tests/e2e
 ```
 
 ## Environment Variables
