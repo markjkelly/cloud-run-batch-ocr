@@ -132,6 +132,9 @@ def _upload_json_to_gcs(
 
     output_gcs_uri = f"gs://{bucket_name}/{output_filename}"
     try:
+        # Clear the bytestream content before serializing to JSON to reduce file size
+        document.content = b""
+        
         blob.upload_from_string(
             documentai.Document.to_json(document),
             content_type="application/json",
@@ -243,6 +246,12 @@ def ocr_document_processor(cloud_event: CloudEvent):
     source_blob = storage_client.bucket(bucket_name).get_blob(file_name)
     if not source_blob:
         logger.warning(f"File not found: {gcs_uri}")
+        return
+
+    # 0. Filter for PDFs only
+    content_type = source_blob.content_type or ""
+    if not (file_name.lower().endswith(".pdf") or content_type == "application/pdf"):
+        logger.info(f"Skipping non-PDF file: {file_name} (Type: {content_type})")
         return
 
     existing_metadata = source_blob.metadata or {}
