@@ -135,6 +135,11 @@ def _upload_json_to_gcs(
         # Clear the bytestream content before serializing to JSON to reduce file size
         document.content = b""
         
+        # Clear page images content as well to remove all binary streams
+        for page in document.pages:
+            if page.image:
+                page.image.content = b""
+        
         blob.upload_from_string(
             documentai.Document.to_json(document),
             content_type="application/json",
