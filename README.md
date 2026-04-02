@@ -71,6 +71,7 @@ By setting `max_instance_count = 20` and `concurrency = 1` in Terraform, the Clo
 .
 ├── app/                  # Python batch OCR processor code (with Dockerfile)
 ├── docs/                 # Deployment guides and operations runbook
+│   ├── CODEMAPS/         # Architectural codemaps and visual guides (INDEX.md)
 │   ├── deploy-terraform.md   # Terraform deployment path
 │   ├── deploy-gcloud.md      # gcloud-only deployment path
 │   └── runbook.md            # Operations runbook (monitoring, rollback, troubleshooting)
