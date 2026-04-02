@@ -268,3 +268,32 @@ def test_safe_patch_metadata_swallows_exception(caplog):
 
     assert "Failed to patch metadata" in caplog.text
     assert mock_blob.metadata == {"ocr_status": "SUCCESS"}
+
+
+@patch("main.get_storage_client")
+def test_non_pdf_skips(_mock_storage, mock_env, sample_cloud_event, caplog):
+    """File that is not a PDF (by extension or mime type) → logs info and returns without processing."""
+    mock_blob = MagicMock()
+    mock_blob.content_type = "text/plain"
+
+    storage_instance = MagicMock()
+    _mock_storage.return_value = storage_instance
+    storage_instance.bucket.return_value.get_blob.return_value = mock_blob
+
+    # Override the event name if needed, or use a custom event.
+    # The sample_cloud_event fixture defaults to test-doc.pdf. Let's create a custom one here.
+    from cloudevents.http import CloudEvent
+    attributes = {
+        "type": "google.cloud.storage.object.v1.finalized",
+        "source": "//storage.googleapis.com/test-bucket",
+    }
+    data = {
+        "bucket": "test-bucket",
+        "name": "test-doc.txt",  # non-PDF extension
+        "generation": "12345",
+    }
+    event = CloudEvent(attributes, data)
+
+    main.ocr_document_processor(event)
+
+    assert "Skipping non-PDF file" in caplog.text
