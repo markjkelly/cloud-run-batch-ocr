@@ -20,7 +20,7 @@ graph TD
     end
 
     subgraph "Compute"
-        PubSub -->|Push (Concurrency 1)| CloudRun["Cloud Run (Max 20 Instances)"]
+        PubSub -- "Push (Concurrency 1)" --> CloudRun["Cloud Run (Max 20 Instances)"]
     end
 
     subgraph "Services"
